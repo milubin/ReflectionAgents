@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "j4-imEn3IbI-RPsTo8V3F"
+uri = "file://artifacts/declarative-parallel-dsl/instructions.md"
+type = "text"
+title = "instructions.md"
