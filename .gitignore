@@ -47,3 +47,30 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.agents/
+.upm/
+.replit
+.replitignore
+replit.md
+
+# Workspace infrastructure (TypeScript / pnpm monorepo)
+# Only artifacts/declarative-parallel-dsl/ is synced to GitHub
+artifacts/api-server/
+artifacts/mockup-sandbox/
+lib/
+scripts/
+pnpm-lock.yaml
+pnpm-workspace.yaml
+package.json
+tsconfig.base.json
+tsconfig.json
+.npmrc
+
+# Root-level auto-generated Python/pip files
+main.py
+pyproject.toml
+uv.lock
+.pythonlibs/
+
+# Uploaded assets
+attached_assets/
