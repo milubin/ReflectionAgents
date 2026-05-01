@@ -213,6 +213,15 @@ importers:
         specifier: 3.1.0
         version: 3.1.0
 
+  artifacts/declarative-parallel-dsl:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.5
+      tsx:
+        specifier: 'catalog:'
+        version: 4.21.0
+
   artifacts/mockup-sandbox:
     devDependencies:
       '@hookform/resolvers':
