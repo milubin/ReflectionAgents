@@ -67,9 +67,9 @@ tsconfig.json
 .npmrc
 
 # Root-level auto-generated Python/pip files
-main.py
-pyproject.toml
-uv.lock
+/main.py
+/pyproject.toml
+/uv.lock
 .pythonlibs/
 
 # Uploaded assets
