@@ -2,3 +2,4 @@ torch>=2.4.0
 triton>=3.0.0
 numpy
 ray[default]>=2.10.0
+networkx>=3.0

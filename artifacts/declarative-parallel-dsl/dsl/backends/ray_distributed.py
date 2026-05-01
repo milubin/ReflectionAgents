@@ -10,10 +10,8 @@ def remote_func(func: Callable, item: Any) -> Any:
 class RayBackend:
     def __init__(self):
         if not ray.is_initialized():
-            ray.init(ignore_reinit_error=True, include_dashboard=False)
+            ray.init(ignore_reinit_error=True)
 
     def map(self, func: Callable, items: List[Any]) -> List[Any]:
-        if not items:
-            return []
         futures = [remote_func.remote(func, item) for item in items]
         return ray.get(futures)
