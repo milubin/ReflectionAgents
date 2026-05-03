@@ -41,8 +41,10 @@ def fetch_pride_and_prejudice() -> str:
     return text[start:end].strip() if start != -1 and end != -1 else text
 
 
-def split_into_chunks(text: str, num_chunks: int = 6) -> List[str]:
-    paragraphs = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 100]
+def split_into_chunks(text: str, num_chunks: int = 4) -> List[str]:
+    # Normalize line endings then split into paragraphs
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    paragraphs = [p.strip() for p in normalized.split("\n\n") if len(p.strip()) > 100]
     chunk_size = max(1, len(paragraphs) // num_chunks)
     chunks = ["\n\n".join(paragraphs[i:i + chunk_size])
               for i in range(0, len(paragraphs), chunk_size)]
