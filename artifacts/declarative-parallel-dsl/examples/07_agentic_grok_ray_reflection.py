@@ -13,8 +13,9 @@ Requires: XAI_API_KEY environment variable set in Replit Secrets.
 Run: python3 examples/07_agentic_grok_ray_reflection.py
 """
 import os
+import logging
 os.environ.setdefault("RAY_DISABLE_DOCKER_CPU_WARNING", "1")
-os.environ.setdefault("RAY_USE_MULTIPROCESSING_CPU_COUNT", "1")
+os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
 import time
 import ray
 import requests
@@ -202,7 +203,9 @@ def agentic_grok_ray_reflection_workflow(rounds: int = 2):
 
 
 if __name__ == "__main__":
-    ray.init(ignore_reinit_error=True, include_dashboard=False)
+    ray.init(ignore_reinit_error=True, include_dashboard=False,
+             object_store_memory=200 * 1024 * 1024,
+             logging_level=logging.ERROR)
 
     print("=" * 60)
     print("🔥  Ray + Grok + Reflection Agentic Workflow")
