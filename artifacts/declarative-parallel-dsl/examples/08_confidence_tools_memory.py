@@ -77,20 +77,95 @@ def preview(text: str, chars: int = 120) -> str:
 
 # ── Ray remote store (persistent memory across rounds) ────────────────────────
 
+JSON_PATH   = "examples/memory_store.json"
+SQLITE_PATH = "examples/memory_store.db"
+
+
 @ray.remote
 class MemoryStore:
-    """Simple key-value store that lives in the Ray object graph."""
-    def __init__(self):
+    """
+    Key-value store that lives in the Ray object graph AND writes to disk on
+    every put():
+      • examples/memory_store.json  — full store as JSON (human-readable)
+      • examples/memory_store.db    — SQLite table `agent_results` (queryable)
+
+    Both files are appended / updated incrementally so data survives restarts.
+    """
+
+    def __init__(self, json_path: str = JSON_PATH, sqlite_path: str = SQLITE_PATH):
+        import json, sqlite3, os
         self._store: Dict[str, Any] = {}
+        self._json_path   = json_path
+        self._sqlite_path = sqlite_path
+
+        # Load existing JSON if present so we don't overwrite prior runs
+        if os.path.exists(json_path):
+            try:
+                with open(json_path) as f:
+                    self._store = json.load(f)
+            except Exception:
+                self._store = {}
+
+        # Create SQLite table if needed
+        con = sqlite3.connect(sqlite_path)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS agent_results (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                round_key  TEXT,
+                agent      TEXT,
+                role       TEXT,
+                output     TEXT,
+                confidence REAL,
+                gaps       TEXT,
+                api_time   REAL,
+                timestamp  TEXT
+            )
+        """)
+        con.commit()
+        con.close()
 
     def put(self, key: str, value: Any):
+        import json, sqlite3
+        from datetime import datetime, timezone
+
         self._store[key] = value
+
+        # ── Write full store to JSON ──────────────────────────────
+        with open(self._json_path, "w") as f:
+            json.dump(self._store, f, indent=2, default=str)
+
+        # ── Write each agent result row to SQLite ─────────────────
+        rows = value if isinstance(value, list) else [value]
+        con  = sqlite3.connect(self._sqlite_path)
+        ts   = datetime.now(timezone.utc).isoformat()
+        for r in rows:
+            if isinstance(r, dict) and "agent" in r:
+                con.execute(
+                    """INSERT INTO agent_results
+                       (round_key, agent, role, output, confidence, gaps, api_time, timestamp)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        key,
+                        r.get("agent", ""),
+                        r.get("role",  ""),
+                        r.get("output", ""),
+                        r.get("confidence", None),
+                        r.get("gaps", ""),
+                        r.get("time", None),
+                        ts,
+                    ),
+                )
+        con.commit()
+        con.close()
 
     def get(self, key: str, default=None):
         return self._store.get(key, default)
 
     def all(self) -> Dict[str, Any]:
         return dict(self._store)
+
+    def paths(self) -> Dict[str, str]:
+        return {"json": self._json_path, "sqlite": self._sqlite_path}
 
 
 # ── Ray remote agent (confidence-aware, tool-using) ──────────────────────────
@@ -308,11 +383,16 @@ def confidence_workflow():
     ))
     print(f"  [Synthesizer] ✓ {final['time']}s")
 
-    # Dump full memory store
-    all_memory = ray.get(memory.all.remote())
-    print(f"\n  📦 Memory store has {len(all_memory)} round(s) of results.")
+    # Persist synthesizer output to memory store too
+    ray.get(memory.put.remote("synthesizer", [final]))
 
-    return {"rounds_run": rounds_run, "results": results, "final": final}
+    all_memory = ray.get(memory.all.remote())
+    paths      = ray.get(memory.paths.remote())
+    print(f"\n  📦 Memory store: {len(all_memory)} key(s) persisted")
+    print(f"     JSON   → {paths['json']}")
+    print(f"     SQLite → {paths['sqlite']}")
+
+    return {"rounds_run": rounds_run, "results": results, "final": final, "paths": paths}
 
 
 if __name__ == "__main__":
@@ -334,4 +414,11 @@ if __name__ == "__main__":
     print(f"\n⏱️  Total time  : {round(time.time()-total_start, 1)}s")
     print(f"Rounds run     : {result['rounds_run']} / {MAX_ROUNDS}")
     print(f"Graph saved    : {GRAPH_PATH}")
+    print(f"\n💾  Persistent memory files:")
+    print(f"     JSON   → {result['paths']['json']}")
+    print(f"            (open in any text editor — full store, all rounds)")
+    print(f"     SQLite → {result['paths']['sqlite']}")
+    print(f"            (query with: python3 -c \"import sqlite3; ...")
+    print(f"             con=sqlite3.connect('{result['paths']['sqlite']}'); ...")
+    print(f"             [print(r) for r in con.execute('SELECT round_key,agent,confidence FROM agent_results')]\")")
     print("=" * 60)
