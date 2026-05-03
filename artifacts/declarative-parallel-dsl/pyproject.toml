@@ -1,9 +1,0 @@
-[project]
-name = "declarative-parallel-dsl"
-version = "0.1.0"
-description = "Declarative parallel DSL with CPU/GPU/Ray/Cerebras backends"
-requires-python = ">=3.10"
-dependencies = ["numpy"]
-
-[tool.setuptools.packages.find]
-include = ["dsl*"]
