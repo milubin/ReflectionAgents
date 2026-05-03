@@ -65,7 +65,7 @@ def agentic_workflow(main_task: str) -> Dict:
 
     # Visualize the graph before running
     G = build_workflow_graph(workers, subtasks)
-    visualize_graph(G, title=f"Agent Graph: {main_task[:50]}", output_path="agent_graph_05.png")
+    visualize_graph(G, title=f"Agent Graph — CPU: {main_task[:50]}", output_path="examples/agent_graph_cpu.png")
 
     # Run in parallel via the DSL
     dsl = ParallelDSL(backend="cpu")

@@ -6,12 +6,11 @@ Agentic workflow with:
 - Ray distributed parallelism
 - Reflection / critic loops (agents critique each other iteratively)
 - Large public text (Pride and Prejudice)
-- Graph visualization
+- Graph visualization  →  examples/agent_graph_grok_ray.png
 
 Requires: XAI_API_KEY environment variable set in Replit Secrets.
-          pip install ray[default] openai requests
 
-Run: python examples/07_agentic_grok_ray_reflection.py
+Run: python3 examples/07_agentic_grok_ray_reflection.py
 """
 import os
 import time
@@ -25,6 +24,8 @@ from dsl.visualizer import visualize_graph
 import networkx as nx
 
 GROK_MODEL = "grok-3"
+DIVIDER = "─" * 60
+GRAPH_PATH = "examples/agent_graph_grok_ray.png"
 
 
 def create_grok_client() -> OpenAI:
@@ -56,10 +57,17 @@ def split_into_chunks(text: str, num_chunks: int = 4) -> List[str]:
             for i in range(0, len(paragraphs), chunk_size)][:num_chunks]
 
 
+def preview(text: str, chars: int = 120) -> str:
+    snippet = text.replace("\n", " ").strip()[:chars]
+    return snippet + "..." if len(text) > chars else snippet
+
+
 @ray.remote
 def remote_agent_act(agent_name: str, role: str, task: str, context: str = "") -> Dict[str, Any]:
-    """Ray-safe: recreates the Grok client inside the remote task (no pickling issues)."""
-    client = create_grok_client()
+    """Ray-safe: Grok client recreated inside each remote task (avoids pickling issues)."""
+    import os, time
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("XAI_API_KEY"), base_url="https://api.x.ai/v1")
     start = time.time()
     prompt = (
         f"You are {role}.\n"
@@ -68,7 +76,7 @@ def remote_agent_act(agent_name: str, role: str, task: str, context: str = "") -
         f"Reply with a clear, concise analysis (3-5 sentences)."
     )
     resp = client.chat.completions.create(
-        model=GROK_MODEL,
+        model="grok-3",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
         max_tokens=600,
@@ -81,24 +89,21 @@ def remote_agent_act(agent_name: str, role: str, task: str, context: str = "") -
     }
 
 
-def build_reflection_graph(agents: List[tuple], rounds: int) -> nx.DiGraph:
+def build_reflection_graph(agent_defs: List[tuple], rounds: int) -> nx.DiGraph:
     G = nx.DiGraph()
     G.add_node("Planner")
     G.add_node("Synthesizer")
 
-    prev_nodes = []
-    for name, role in agents:
+    for name, _ in agent_defs:
         G.add_node(name)
         G.add_edge("Planner", name)
-        prev_nodes.append(name)
 
     for r in range(1, rounds):
-        curr_nodes = []
-        for name, _ in agents:
-            critic_node = f"{name}\n(Critic R{r+1})"
+        for name, _ in agent_defs:
+            prev = name if r == 1 else f"{name}\nCritic R{r}"
+            critic_node = f"{name}\nCritic R{r+1}"
             G.add_node(critic_node)
-            G.add_edge(name if r == 1 else f"{name}\n(Critic R{r})", critic_node)
-            curr_nodes.append(critic_node)
+            G.add_edge(prev, critic_node)
 
     for node in G.nodes:
         if node != "Synthesizer":
@@ -110,7 +115,9 @@ def build_reflection_graph(agents: List[tuple], rounds: int) -> nx.DiGraph:
 def agentic_grok_ray_reflection_workflow(rounds: int = 2):
     full_text = fetch_pride_and_prejudice()
     chunks = split_into_chunks(full_text, num_chunks=4)
-    print(f"✅ Loaded {len(full_text):,} chars → {len(chunks)} chunks\n")
+    print(f"✅ Loaded {len(full_text):,} chars → {len(chunks)} chunks")
+    for i, chunk in enumerate(chunks, 1):
+        print(f"   Chunk {i}: {len(chunk):,} chars — \"{preview(chunk, 80)}\"")
 
     agent_defs = [
         ("Researcher", "Plot and Character Summarizer"),
@@ -119,23 +126,45 @@ def agentic_grok_ray_reflection_workflow(rounds: int = 2):
         ("Historian",  "Regency-Era Context Expert"),
     ]
 
-    # Visualize the full workflow graph including reflection rounds
+    # Visualize full graph (initial agents + reflection rounds + synthesizer)
+    print(f"\n{DIVIDER}")
+    print(f"Building agent graph ({rounds} rounds) → {GRAPH_PATH}")
+    print(DIVIDER)
     G = build_reflection_graph(agent_defs, rounds)
-    visualize_graph(G, title=f"Ray + Grok + Reflection ({rounds} rounds)", output_path="agent_graph_07.png")
+    visualize_graph(
+        G,
+        title=f"Ray + Grok + Reflection ({rounds} rounds) — Pride and Prejudice",
+        output_path=GRAPH_PATH,
+    )
 
-    # Round 1: parallel initial analysis
-    print("🚀 Round 1: Parallel Grok agents via Ray...\n")
+    # ── Round 1: initial parallel analysis ────────────────────────
+    print(f"\n{DIVIDER}")
+    print("ROUND 1 — Parallel Grok agents via Ray")
+    print(DIVIDER)
+    print("\n🚀 Dispatching agents in parallel via Ray...\n")
+    for (name, role), chunk in zip(agent_defs, chunks):
+        print(f"  ┌─ [{name}] {role}")
+        print(f"  │  📄 \"{preview(chunk, 100)}\"")
+        print(f"  └─ submitted to Ray ✓")
+
     futures = [
         remote_agent_act.remote(name, role, "Deeply analyze this passage.", chunk)
         for (name, role), chunk in zip(agent_defs, chunks)
     ]
     results = ray.get(futures)
-    for r in results:
-        print(f"  [{r['agent']}] ✓ {r['time']}s")
 
-    # Reflection rounds: agents critique previous outputs
+    print("\n  Results received:")
+    for r in results:
+        print(f"\n  [{r['agent']} — {r['role']}] ({r['time']}s)")
+        print(f"  {r['output']}")
+
+    # ── Reflection rounds ──────────────────────────────────────────
     for round_num in range(1, rounds):
-        print(f"\n🔄 Reflection Round {round_num + 1}: agents critique each other...\n")
+        print(f"\n{DIVIDER}")
+        print(f"REFLECTION ROUND {round_num + 1} — agents critique previous outputs")
+        print(DIVIDER)
+        print("\n🔄 Dispatching critic agents via Ray...\n")
+
         critique_futures = [
             remote_agent_act.remote(
                 f"{r['agent']}_Critic_R{round_num + 1}",
@@ -146,32 +175,45 @@ def agentic_grok_ray_reflection_workflow(rounds: int = 2):
             for r in results
         ]
         critique_results = ray.get(critique_futures)
+
+        print("  Critique results:")
         for r in critique_results:
-            print(f"  [{r['agent']}] ✓ {r['time']}s")
+            print(f"\n  [{r['agent']}] ({r['time']}s)")
+            print(f"  {r['output']}")
+
         results.extend(critique_results)
 
-    # Synthesizer
-    print("\n📝 Final synthesis...\n")
+    # ── Synthesizer ────────────────────────────────────────────────
+    print(f"\n{DIVIDER}")
+    print("FINAL STEP — Synthesizer combines all outputs")
+    print(DIVIDER)
     combined = "\n\n---\n\n".join(r["output"] for r in results)
+    print(f"\n📝 Sending {len(results)} agent outputs to Synthesizer...\n")
     final = ray.get(remote_agent_act.remote(
         "Synthesizer", "synthesizer",
-        "Write a coherent, high-quality literary analysis from all agent outputs.",
+        "Write a coherent, high-quality literary analysis report from all agent outputs.",
         combined
     ))
+    print(f"  [Synthesizer] ✓ {final['time']}s")
 
     return {"all_results": results, "final_report": final}
 
 
 if __name__ == "__main__":
     ray.init(ignore_reinit_error=True, include_dashboard=False)
-    print("🔥 Ray + Grok + Reflection Agentic Workflow\n")
+
+    print("=" * 60)
+    print("🔥  Ray + Grok + Reflection Agentic Workflow")
+    print("    Real API · Distributed · Self-critique loops")
+    print("=" * 60)
     total_start = time.time()
     result = agentic_grok_ray_reflection_workflow(rounds=2)
 
-    print("\n" + "="*70)
-    print("📖 FINAL LITERARY ANALYSIS (after reflection loops)")
-    print("="*70)
+    print(f"\n{'='*60}")
+    print("📖  FINAL LITERARY ANALYSIS (after reflection loops)")
+    print("="*60)
     print(result["final_report"]["output"])
-    print(f"\n⏱️  Total: {round(time.time()-total_start, 1)}s")
-    print(f"Total agent outputs (incl. reflections): {len(result['all_results'])}")
-    print("\n🎉 Full agentic workflow: Ray + Grok API + self-critique complete!")
+    print(f"\n⏱️  Total time : {round(time.time()-total_start, 1)}s")
+    print(f"Agent outputs (incl. reflections): {len(result['all_results'])}")
+    print(f"\n🎉  Complete! Graph saved → {GRAPH_PATH}")
+    print("=" * 60)

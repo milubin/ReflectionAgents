@@ -134,7 +134,7 @@ def agentic_grok_workflow():
     ]
 
     G = build_workflow_graph(agents)
-    visualize_graph(G, title="Grok Agentic Workflow — Pride and Prejudice", output_path="agent_graph_06.png")
+    visualize_graph(G, title="Grok Agentic Workflow — CPU + Pride and Prejudice", output_path="examples/agent_graph_grok_cpu.png")
 
     dsl = ParallelDSL(backend="cpu")
     pairs = list(zip(agents, chunks))
@@ -180,5 +180,5 @@ if __name__ == "__main__":
     print(f"\n⏱️  Total time : {round(time.time()-total_start, 1)}s")
     print(f"Parallel agents: {len(result['results'])}")
     print("\n🎉  Grok API agentic workflow complete!")
-    print("    Graph saved → agent_graph_06.png")
+    print("    Graph saved → examples/agent_graph_grok_cpu.png")
     print("=" * 60)
