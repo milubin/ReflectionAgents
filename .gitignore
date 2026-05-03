@@ -53,10 +53,8 @@ Thumbs.db
 .replitignore
 replit.md
 
-# Workspace infrastructure (TypeScript / pnpm monorepo)
-# Only artifacts/declarative-parallel-dsl/ is synced to GitHub
-artifacts/api-server/
-artifacts/mockup-sandbox/
+# Workspace infrastructure (TypeScript / pnpm monorepo) — not part of the Python project
+artifacts/
 lib/
 scripts/
 pnpm-lock.yaml
@@ -66,11 +64,30 @@ tsconfig.base.json
 tsconfig.json
 .npmrc
 
-# Root-level auto-generated Python/pip files
+# Python build artifacts
 /main.py
 /pyproject.toml
 /uv.lock
 .pythonlibs/
+declarative_parallel_dsl.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+
+# Old root-level graph PNGs (graphs now live in examples/)
+/agent_graph_*.png
+
+# Script output files
+my_first_parallel_agents*.txt
+
+# Old/redundant docs
+/instructions.md
+
+# Test artifacts
+/tests/
 
 # Uploaded assets
 attached_assets/
+
+# Local environment
+.env
