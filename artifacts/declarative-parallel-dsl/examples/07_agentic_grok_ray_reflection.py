@@ -13,6 +13,8 @@ Requires: XAI_API_KEY environment variable set in Replit Secrets.
 Run: python3 examples/07_agentic_grok_ray_reflection.py
 """
 import os
+os.environ.setdefault("RAY_DISABLE_DOCKER_CPU_WARNING", "1")
+os.environ.setdefault("RAY_USE_MULTIPROCESSING_CPU_COUNT", "1")
 import time
 import ray
 import requests
