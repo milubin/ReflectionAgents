@@ -84,21 +84,28 @@ SQLITE_PATH = "examples/memory_store.db"
 @ray.remote
 class MemoryStore:
     """
-    Key-value store that lives in the Ray object graph AND writes to disk on
-    every put():
+    Key-value store that lives in the Ray object graph.
+
+    Default (persist=False): in-memory only, no files created.
+
+    With persist=True (pass --debug on the command line):
       • examples/memory_store.json  — full store as JSON (human-readable)
       • examples/memory_store.db    — SQLite table `agent_results` (queryable)
-
-    Both files are appended / updated incrementally so data survives restarts.
+    Both files accumulate across runs (prior data is not overwritten).
     """
 
-    def __init__(self, json_path: str = JSON_PATH, sqlite_path: str = SQLITE_PATH):
+    def __init__(self, persist: bool = False,
+                 json_path: str = JSON_PATH, sqlite_path: str = SQLITE_PATH):
         import json, sqlite3, os
-        self._store: Dict[str, Any] = {}
-        self._json_path   = json_path
-        self._sqlite_path = sqlite_path
+        self._store:       Dict[str, Any] = {}
+        self._persist      = persist
+        self._json_path    = json_path
+        self._sqlite_path  = sqlite_path
 
-        # Load existing JSON if present so we don't overwrite prior runs
+        if not persist:
+            return
+
+        # Load existing JSON so prior runs accumulate
         if os.path.exists(json_path):
             try:
                 with open(json_path) as f:
@@ -125,10 +132,13 @@ class MemoryStore:
         con.close()
 
     def put(self, key: str, value: Any):
+        self._store[key] = value
+
+        if not self._persist:
+            return
+
         import json, sqlite3
         from datetime import datetime, timezone
-
-        self._store[key] = value
 
         # ── Write full store to JSON ──────────────────────────────
         with open(self._json_path, "w") as f:
@@ -165,7 +175,9 @@ class MemoryStore:
         return dict(self._store)
 
     def paths(self) -> Dict[str, str]:
-        return {"json": self._json_path, "sqlite": self._sqlite_path}
+        if self._persist:
+            return {"json": self._json_path, "sqlite": self._sqlite_path}
+        return {}
 
 
 # ── Ray remote agent (confidence-aware, tool-using) ──────────────────────────
@@ -286,7 +298,7 @@ def split_into_chunks(text: str, n: int = 4) -> List[str]:
             for i in range(0, len(paragraphs), chunk_size)][:n]
 
 
-def confidence_workflow():
+def confidence_workflow(debug: bool = False):
     full_text = fetch_pride_and_prejudice()
     chunks    = split_into_chunks(full_text, n=4)
     print(f"✅ {len(full_text):,} chars → {len(chunks)} chunks")
@@ -310,8 +322,8 @@ def confidence_workflow():
         chunk_tools.append(tr)
         print(f"  Chunk {i}: {tr['word_count']:,} words | keywords: {tr['keywords']}")
 
-    # Start Ray persistent memory store
-    memory = MemoryStore.remote()
+    # Start Ray memory store (persists to disk only when --debug is set)
+    memory = MemoryStore.remote(persist=debug)
 
     results      = []
     rounds_run   = 0
@@ -388,24 +400,36 @@ def confidence_workflow():
 
     all_memory = ray.get(memory.all.remote())
     paths      = ray.get(memory.paths.remote())
-    print(f"\n  📦 Memory store: {len(all_memory)} key(s) persisted")
-    print(f"     JSON   → {paths['json']}")
-    print(f"     SQLite → {paths['sqlite']}")
+    print(f"\n  📦 Memory store: {len(all_memory)} key(s) held in Ray object store")
+    if debug:
+        print(f"     JSON   → {paths['json']}")
+        print(f"     SQLite → {paths['sqlite']}")
 
-    return {"rounds_run": rounds_run, "results": results, "final": final, "paths": paths}
+    return {"rounds_run": rounds_run, "results": results, "final": final, "paths": paths, "debug": debug}
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Confidence-gated agentic workflow")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Persist memory store to disk (examples/memory_store.json + .db)",
+    )
+    args = parser.parse_args()
+
     ray.init(ignore_reinit_error=True, include_dashboard=False)
 
     print("=" * 60)
     print("🔥  Confidence-Gated Agentic Workflow")
     print(f"    Threshold={CONFIDENCE_THRESHOLD} · Max rounds={MAX_ROUNDS}")
-    print("    Tools · Ray memory · Dynamic stopping")
+    print(f"    Tools · Ray memory · Dynamic stopping")
+    if args.debug:
+        print(f"    [--debug] Writing memory store to disk")
     print("=" * 60)
 
     total_start = time.time()
-    result = confidence_workflow()
+    result = confidence_workflow(debug=args.debug)
 
     print(f"\n{'='*60}")
     print("📖  FINAL LITERARY ANALYSIS")
@@ -414,11 +438,10 @@ if __name__ == "__main__":
     print(f"\n⏱️  Total time  : {round(time.time()-total_start, 1)}s")
     print(f"Rounds run     : {result['rounds_run']} / {MAX_ROUNDS}")
     print(f"Graph saved    : {GRAPH_PATH}")
-    print(f"\n💾  Persistent memory files:")
-    print(f"     JSON   → {result['paths']['json']}")
-    print(f"            (open in any text editor — full store, all rounds)")
-    print(f"     SQLite → {result['paths']['sqlite']}")
-    print(f"            (query with: python3 -c \"import sqlite3; ...")
-    print(f"             con=sqlite3.connect('{result['paths']['sqlite']}'); ...")
-    print(f"             [print(r) for r in con.execute('SELECT round_key,agent,confidence FROM agent_results')]\")")
+    if args.debug and result["paths"]:
+        print(f"\n💾  Debug files written:")
+        print(f"     JSON   → {result['paths']['json']}")
+        print(f"            (open in any text editor — full store, all rounds)")
+        print(f"     SQLite → {result['paths']['sqlite']}")
+        print(f"            query: python3 -c \"import sqlite3; con=sqlite3.connect('{result['paths']['sqlite']}'); [print(r) for r in con.execute('SELECT round_key,agent,confidence FROM agent_results')]\"")
     print("=" * 60)

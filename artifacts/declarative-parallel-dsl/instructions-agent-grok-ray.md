@@ -106,9 +106,15 @@ What it does:
 
 Graph saved to: `examples/agent_graph_confidence.png`
 
-### Persistent memory files
+### Persistent memory files (--debug only)
 
-Every time an agent round completes, two files are written to `examples/` automatically:
+By default no files are written. Pass `--debug` to enable disk persistence:
+
+```bash
+python3 examples/08_confidence_tools_memory.py --debug
+```
+
+When `--debug` is active, two files are written to `examples/` after every round:
 
 **`examples/memory_store.json`** — the complete store, all rounds, human-readable:
 ```json
@@ -118,7 +124,7 @@ Every time an agent round completes, two files are written to `examples/` automa
   "synthesizer": [ ... ]
 }
 ```
-Open it in any text editor. Prior runs are loaded back in and extended on the next run — they are not overwritten.
+Open it in any text editor. Prior runs are loaded back in and extended — not overwritten.
 
 **`examples/memory_store.db`** — SQLite, one row per agent per round. Query it from the shell:
 ```bash
@@ -130,7 +136,7 @@ for r in con.execute('SELECT round_key, agent, confidence FROM agent_results'):
 "
 ```
 
-You can filter by round, sort by confidence, compare runs — standard SQL. Both files are created on the first run if they don't exist, or appended to if they do.
+You can filter by round, sort by confidence, compare runs — standard SQL. Both files are created on the first `--debug` run if they don't exist, or appended to if they do. Without `--debug`, the memory store lives only in Ray's object store for the duration of the script.
 
 ---
 
