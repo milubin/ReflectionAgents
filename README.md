@@ -198,6 +198,35 @@ Reflexion introduced the idea of agents generating verbal self-critiques and usi
 
 ---
 
+## How Reflection Works in This Framework
+
+The reflection/critic loops are inspired by the **Reflexion** (Shinn et al., 2023) paper. Instead of updating model weights, agents generate verbal self-critiques in natural language and use them to improve future outputs.
+
+In the examples, this manifests as an **adaptive experimental loop**:
+- A "Navigator" agent sees all previous simulation results.
+- It reasons in natural language about gaps in the data, threshold regions, and scientific priorities.
+- It chooses the next noise level to probe.
+- Critic agents review the results and suggest improvements to the search strategy.
+
+### Comparison with Classical Optimization Algorithms
+
+| Aspect | Classical Optimizers (SGD, Bayesian Optimization, Grid Search, CMA-ES, etc.) | Agentic Reflexion Approach (this framework) | Advantage |
+|---|---|---|---|
+| **Decision Making** | Purely numerical / statistical | Natural language reasoning + domain knowledge | Reflexion |
+| **Interpretability** | Low (black-box next-point suggestions) | High (explains *why* it chose the next point) | Reflexion |
+| **Incorporating Scientific Intuition** | Difficult (must be encoded mathematically) | Natural ("probe near expected threshold") | Reflexion |
+| **Self-Improvement of Strategy** | Static algorithm | Dynamic via reflection/critic loops | Reflexion |
+| **Handling Qualitative Goals** | Poor | Excellent ("find where the code starts failing badly") | Reflexion |
+| **Sample Efficiency** | Usually better | Lower, but more "intelligent" per sample | Classical |
+| **Speed & Cost** | Very fast and cheap | Slower (API calls) | Classical |
+| **Best Use Case** | Fine-tuning known objectives, high-dimensional problems | Exploratory science, hypothesis generation, complex reasoning | — |
+
+**Summary**: This agentic Reflexion approach is not trying to replace classical optimizers. It shines in **exploratory research** where understanding, reasoning, and strategic experiment design matter more than pure sample efficiency. It behaves like a small team of collaborating scientists rather than a blind numerical search algorithm.
+
+This makes it particularly valuable for quantum error correction studies, where knowing *why* a code fails at certain noise levels is often more important than finding the absolute minimum error rate.
+
+---
+
 ## Agentic Workflow Pattern
 
 ```
