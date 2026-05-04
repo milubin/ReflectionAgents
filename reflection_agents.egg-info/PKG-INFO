@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: reflection-agents
+Version: 0.1.0
+Summary: Agentic workflow framework with Grok API, Ray, reflection loops, and QEC simulation
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: numpy
+Dynamic: license-file

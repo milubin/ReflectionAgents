@@ -1,4 +1,4 @@
-# declarative-parallel-dsl
+# ReflectionAgents
 
 > A declarative agentic workflow framework built with Grok API + Ray + reflection loops.
 
@@ -223,7 +223,7 @@ Researcher  Analyst    Critic   Historian   ← parallel, real Grok API
 ## Project Structure
 
 ```
-declarative-parallel-dsl/
+ReflectionAgents/
 ├── dsl/
 │   ├── base_dsl.py              # ParallelDSL class, backend dispatch
 │   ├── dataflow_dsl.py          # Dataflow graph DSL

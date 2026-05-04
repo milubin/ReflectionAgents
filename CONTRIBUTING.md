@@ -1,4 +1,4 @@
-# Contributing to Declarative-Parallel-Dsl
+# Contributing to ReflectionAgents
 
 Thank you for your interest in contributing! This project is designed as an educational and prototyping tool for declarative parallel and agentic AI systems.
 
@@ -14,8 +14,8 @@ Thank you for your interest in contributing! This project is designed as an educ
 ## Development Setup
 
 ```bash
-git clone https://github.com/milubin/Declarative-Parallel-Dsl.git
-cd Declarative-Parallel-Dsl
+git clone https://github.com/milubin/ReflectionAgents.git
+cd ReflectionAgents
 pip install -e .
 pip install ray        # for distributed examples (07, 08)
 ```
@@ -34,7 +34,7 @@ python3 examples/05_agentic_workflow.py
 
 ```
 dsl/                     # Core DSL and backends
-examples/                # Runnable examples (01–08)
+examples/                # Runnable examples (01–10)
 agent.py                 # Natural-language CLI
 instructions-agent-grok-ray.md   # Detailed walkthrough
 ```

@@ -88,7 +88,7 @@ if __name__ == "__main__":
     data = list(range(20))
 
     print("=" * 50)
-    print("Declarative Parallel DSL — Interactive Agent")
+    print("ReflectionAgents — Interactive Agent")
     print("=" * 50)
     print("Commands you can try:")
     print("  square the numbers on CPU")
