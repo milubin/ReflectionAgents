@@ -63,15 +63,16 @@ Get a key at: **https://console.x.ai** → sign in → **Create API Key**
 
 ```bash
 pip install -e .
-pip install ray        # needed for examples 07, 08, 09
-pip install stim       # needed for example 09 (QEC simulation)
+pip install ray        # needed for examples 07, 08, 09, 10
+pip install stim       # needed for examples 09, 10 (QEC simulation)
+pip install matplotlib # needed for example 10 (noise curve plot)
 ```
 
 ---
 
 ## How to Run Each Example
 
-All commands from `artifacts/declarative-parallel-dsl/`.
+All commands from the workspace root.
 
 ### Example 05 — CPU agents, no API key required
 ```bash
@@ -127,6 +128,25 @@ for r in con.execute('SELECT round_key, agent, confidence FROM agent_results'):
     print(r)
 "
 ```
+
+---
+
+### Example 10 — Adaptive QEC noise sweep (dynamic loop + plot)
+```bash
+python3 examples/10_qec_adaptive_loop.py
+```
+A **Grok navigator agent** drives the experiment: after each Stim measurement it decides which noise level to probe next (filling gaps, hunting the threshold region) until it is confident the curve is well-characterised or a round cap is hit.
+
+What happens step by step:
+1. **Seed** — one Stim measurement at noise=0.02 (no API call)
+2. **Adaptive loop** — each round: Navigator (Grok) sees all data, picks the next noise value, Stim runs it; loop stops when `confidence >= 0.85` or 8 rounds
+3. **Plot** — log-log error rate vs noise PNG with measured points, annotation order, and theoretical 3p² reference line → `examples/qec_noise_curve.png`
+4. **Agent graph** → `examples/agent_graph_qec_adaptive.png`
+5. **Synthesizer** — Grok writes a final report identifying the failure threshold and top recommendation
+
+Results saved to `examples/qec_adaptive_results.json`. Runtime ~30–60 s.
+
+Requires `pip install stim matplotlib`.
 
 ---
 
@@ -224,6 +244,7 @@ declarative-parallel-dsl/
 │   ├── 07_agentic_grok_ray_reflection.py  # Grok + Ray + reflection
 │   ├── 08_confidence_tools_memory.py    # Confidence-gated + tools + memory
 │   ├── 09_qec_agentic_simulation.py     # QEC — Stim + Ray + Grok
+│   ├── 10_qec_adaptive_loop.py          # Adaptive loop + noise curve plot
 │   └── agent_graph_cpu.png              # sample visualization
 ├── agent.py                     # natural-language CLI
 ├── instructions-agent-grok-ray.md

@@ -151,6 +151,7 @@ Each example saves a PNG diagram of its agent workflow graph to the `examples/` 
 | 07 | Grok + Ray | `examples/agent_graph_grok_ray.png` |
 | 08 | Grok + Ray + confidence | `examples/agent_graph_confidence.png` |
 | 09 | Stim + Ray + Grok (QEC) | `examples/agent_graph_qec.png` |
+| 10 | Adaptive loop + plot (QEC) | `examples/agent_graph_qec_adaptive.png` |
 
 The graphs show how data flows from Planner through parallel agents to Synthesizer, including reflection rounds and the Ray MemoryStore actor in example 08.
 
@@ -190,6 +191,30 @@ noise=0.020  →  logical_error_rate=0.0050
 noise=0.040  →  logical_error_rate=0.0196
 ```
 As expected for a repetition code: logical error rate scales roughly as noise², confirming the code suppresses single-qubit errors.
+
+---
+
+## Example 10 — Adaptive QEC noise sweep (dynamic loop + plot)
+
+Grok acts as a **Navigator agent** that steers the experiment: it sees all data collected so far and picks the most informative noise level to probe next, until it is confident the error-rate curve is well-characterised.
+
+```bash
+python3 examples/10_qec_adaptive_loop.py
+```
+
+Requirements:
+- `XAI_API_KEY` set in Replit Secrets
+- `stim` and `matplotlib` installed
+
+What it does:
+- **Seed** — one Stim run at noise=0.02 (no API call)
+- **Adaptive loop** — each round: Navigator (Grok) chooses the next noise value based on gaps and the threshold region; Stim runs it; loop stops when `confidence >= 0.85` or 8 rounds reached
+- **Log-log plot** — error rate vs noise PNG with measured points, probe order annotation, and theoretical 3p² reference line → `examples/qec_noise_curve.png`
+- **Agent graph** → `examples/agent_graph_qec_adaptive.png`
+- **Synthesizer** — final report with estimated failure threshold and top recommendation
+- All history saved to `examples/qec_adaptive_results.json`
+
+Typical runtime: ~30–60 s (sequential rounds, one Grok call each).
 
 ---
 
