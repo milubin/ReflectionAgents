@@ -8,6 +8,18 @@ Autonomous agents that plan, execute in parallel, critique each other, and synth
 
 ---
 
+## Why This Project Exists
+
+This project was created to explore an idea: if modern AI tools can dramatically accelerate the way we design, run, and analyze complex computational experiments — such as quantum error correction simulations.
+
+I wanted to see how far a Reflexion-style agentic approach could go when combined with real parallel execution (Ray), multiple hardware backends, and actual simulation code (Stim). The result is a lightweight, educational framework that turns exploratory scientific workflows into adaptive, self-improving loops.
+
+It is not meant to replace massive production frameworks like those used at CERN or Fermilab. Instead, it demonstrates what a single person (with heavy AI assistance) can build quickly today, and it provides a clean starting point for others who want to experiment with agentic + parallel scientific computing.
+
+The goal is educational and exploratory: to show what is already possible, to make these ideas accessible, and to invite collaboration from people working in quantum error correction, high-performance computing, and agentic AI.
+
+---
+
 ## Project Goals
 
 - **Single DSL, multiple backends** — write once, run on CPU threads, GPU (Triton), distributed Ray clusters, or Cerebras CSL without changing your workflow code
