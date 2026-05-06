@@ -406,6 +406,7 @@ def navigator_agent(
     policy: Dict,
     metrics: Dict,
     round_num: int,
+    prior_deferrals: List[Dict],
 ) -> Dict:
     import os, time, json
     from openai import OpenAI
@@ -420,12 +421,29 @@ def navigator_agent(
         for s in a.get("suggestions", []):
             sug_text += f"  → {s['param']} = {s['new_value']}  ({s['reason']})\n"
 
+    deferrals_text = ""
+    if prior_deferrals:
+        lines = "\n".join(
+            f"  Round {d['round']}: deferred {d['params']} — critics said too many "
+            f"simultaneous changes, attribution risk too high"
+            for d in prior_deferrals
+        )
+        deferrals_text = f"""
+Prior deferrals (changes critics blocked in earlier rounds):
+{lines}
+
+IMPORTANT: critics defer changes when too many parameters change at once.
+If your proposals keep getting deferred, propose FEWER changes this round —
+ideally just ONE high-impact parameter. One change per round lets you observe
+its effect cleanly before proposing the next.
+"""
+
     prompt = f"""You are a Navigator meta-agent coordinating an adaptive enemy AI experiment.
 
 Current policy: {json.dumps(policy)}
 Current metrics: {json.dumps(metrics)}
 Round: {round_num}
-
+{deferrals_text}
 Agent suggestions:
 {sug_text}
 
@@ -435,9 +453,8 @@ Your job:
 3. Rate your confidence (0–1) that the selected changes will improve win_rate
 4. Note: win_rate={metrics['win_rate']}, aim > 0.5 eventually
 
-Attribution discipline: if win_rate is already above 0.4 and showing clear improvement,
-prefer 1-2 changes over 3. Fewer simultaneous changes let the next round reason over
-cleaner causal evidence — you'll know which change actually moved the needle.
+Attribution discipline: prefer fewer simultaneous changes so each round's result
+is causally interpretable. If win_rate is already above 0.4, prefer 1-2 changes.
 
 Stop condition: if confidence >= 0.82 AND win_rate >= 0.4, declare the policy good.
 
@@ -483,12 +500,24 @@ def critic_agent(role: str, suggestion: Dict, metrics: Dict, policy: Dict,
         others = ", ".join(
             f"{c['param']}→{c['new_value']}" for c in other_changes
         )
+        total_simultaneous = len(other_changes) + 1
         concurrency_note = (
             f"\nOther changes landing this same round: {others}"
-            f"\nAttribution risk: {len(other_changes)+1} parameters changing at once."
-            f" If win rate improves, we won't know which change caused it."
-            f" Consider whether this specific change could be deferred to isolate effects."
+            f"\nSimultaneous changes this round: {total_simultaneous}."
         )
+        # Only flag attribution risk and recommend deferral when 4+ params change at once.
+        # 2-3 simultaneous changes are acceptable — flag for awareness only.
+        if total_simultaneous >= 4:
+            concurrency_note += (
+                f" Attribution risk is HIGH — {total_simultaneous} parameters changing"
+                f" at once makes it impossible to isolate which change drove the result."
+                f" Set defer=true for this change so it can be re-proposed next round."
+            )
+        else:
+            concurrency_note += (
+                f" Attribution risk is moderate — note the concurrency but approve"
+                f" unless you see a more specific problem (conflicting params, out of range)."
+            )
 
     prompt = f"""You are a critic reviewing a proposed enemy AI policy change.
 
@@ -647,8 +676,9 @@ def build_agent_graph(n_rounds: int) -> nx.DiGraph:
 def adaptive_enemy_loop():
     env     = GameEnv()
     policy  = copy.deepcopy(BASELINE_POLICY)
-    log     : List[Dict] = []
-    round_n = 0
+    log              : List[Dict] = []
+    round_n          : int        = 0
+    prior_deferrals  : List[Dict] = []
 
     agent_defs = [
         ("Tactician",  "Combat Tactician",
@@ -695,7 +725,8 @@ def adaptive_enemy_loop():
 
         # ── Step 2: Navigator picks the best changes ──────────────────────────
         print(f"\n  Navigator deciding best changes...")
-        nav = ray.get(navigator_agent.remote(analysts, policy, metrics, round_n))
+        nav = ray.get(navigator_agent.remote(analysts, policy, metrics, round_n,
+                                             prior_deferrals))
         print(f"  Navigator conf={nav['confidence']:.3f}  stop={nav['stop']}")
         print(f"  Rationale: {nav['rationale']}")
         for ch in nav["apply"]:
@@ -737,8 +768,9 @@ def adaptive_enemy_loop():
         deferred_params = set(defer_votes.keys())
         if deferred_params:
             for p in deferred_params:
-                print(f"    Deferred (majority critic vote): {p} — skipped this round")
+                print(f"    Deferred (critic vote): {p} — skipped this round")
             final_changes = [fc for fc in final_changes if fc["param"] not in deferred_params]
+            prior_deferrals.append({"round": round_n, "params": sorted(deferred_params)})
 
         # ── Step 4: Apply policy, evaluate ───────────────────────────────────
         policy  = apply_changes(policy, final_changes)
