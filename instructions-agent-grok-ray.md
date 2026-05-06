@@ -158,6 +158,7 @@ Each example saves a PNG diagram of its agent workflow graph to the `examples/` 
 | 08 | Grok + Ray + confidence | `examples/agent_graph_confidence.png` |
 | 09 | Stim + Ray + Grok (QEC) | `examples/agent_graph_qec.png` |
 | 10 | Adaptive loop + plot (QEC) | `examples/agent_graph_qec_adaptive.png` |
+| 11 | GameEnv + Ray + Grok (enemy AI) | `examples/agent_graph_enemy_ai.png` |
 
 The graphs show how data flows from Planner through parallel agents to Synthesizer, including reflection rounds and the Ray MemoryStore actor in example 08.
 

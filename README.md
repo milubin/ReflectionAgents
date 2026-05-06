@@ -162,6 +162,56 @@ Requires `pip install stim matplotlib`.
 
 ---
 
+### Example 11 — Adaptive Enemy AI (GameEnv + Ray + Grok Reflexion)
+```bash
+python3 examples/11_adaptive_enemy_ai.py
+```
+A **dungeon RPG enemy that learns to beat you** across episodes using a Reflexion-style agentic loop. The enemy starts dumb (straight-line pursuit, default stats) and improves across up to 7 rounds of multi-agent critique.
+
+The adapter design:
+```python
+class GameEnv:
+    def reset()                     → GameState
+    def step(state, policy)         → (new_state, reward, done)
+    def serialize_state(state)      → str   # injected into agent prompts
+    def run_episode(policy)         → EpisodeResult
+    def evaluate_policy(policy, n)  → metrics dict
+```
+The `serialize_state → text → agent → text → policy update` bridge is the whole framework. Everything else is the existing reflection/Ray pattern.
+
+What happens step by step:
+1. **Baseline** — `GameEnv` runs 12 episodes with the default policy; enemy win rate is ~0–5%
+2. **4 parallel Grok analysts** (via Ray):
+   - **Tactician** — optimises `attack_bonus` and `crit_chance`
+   - **Pathfinder** — optimises `speed` and `flank_weight`
+   - **Predictor** — models player behaviour, suggests counter-strategies
+   - **Historian** — reviews prior episode logs, identifies what worked
+3. **Navigator** — meta-agent picks the 1–2 highest-leverage parameter changes
+4. **Reflection round** — critic agents validate and optionally override each change
+5. **Policy applied** — `GameEnv.evaluate_policy()` re-runs 12 episodes with the new policy
+6. Loop repeats until `Navigator.confidence ≥ 0.82` or 7 rounds
+
+Enemy policy parameters the agents tune:
+| Parameter | Range | Effect |
+|---|---|---|
+| `speed` | 1–2 | BFS steps/turn — key pursuit speed |
+| `attack_bonus` | 0–15 | Extra flat ATK from learned aggression |
+| `crit_chance` | 0.05–0.35 | Critical hit probability |
+| `flank_weight` | 0.0–1.0 | Direct-chase vs flanking tendency |
+| `burst_threshold` | 0.0–0.5 | Sprint 2× when player HP < this |
+| `retreat_hp_pct` | 0.0–0.5 | Retreat when own HP < this |
+
+Outputs:
+- `examples/enemy_learning_curve.png` — win rate + avg damage across episodes, Navigator confidence
+- `examples/agent_graph_enemy_ai.png` — agent graph for all rounds
+- `examples/enemy_ai_results.json` — full log of policies, metrics, critiques, final report
+
+Expected improvement (physics verified): baseline win rate ~2% → strong policy ~100%.
+
+Requires `pip install ray matplotlib`.
+
+---
+
 ### Example 09 — Quantum Error Correction simulation (Stim + Ray + Grok)
 ```bash
 python3 examples/09_qec_agentic_simulation.py
