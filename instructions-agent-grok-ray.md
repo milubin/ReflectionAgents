@@ -10,7 +10,7 @@ The reflection and critic loops are inspired by the **Reflexion** paper (Shinn e
 > Noah Shinn, Federico Cassano, Edward Berman, Ashwin Gopinath, Karthik Narasimhan, Shunyu Yao
 > arXiv:2303.11366 — https://arxiv.org/abs/2303.11366
 
-Rather than updating model weights, Reflexion agents reflect on their prior outputs verbally and produce improved answers on the next pass. This is exactly the mechanism in examples 07–10: each reflection round the agent reads its own previous analysis and is asked to critique and improve it.
+Rather than updating model weights, Reflexion agents reflect on their prior outputs verbally and produce improved answers on the next pass. This is exactly the mechanism in examples 07–11: each reflection round the agent reads its own previous analysis (or episode results) and is asked to critique and improve it.
 
 ---
 
@@ -222,6 +222,102 @@ What it does:
 - All history saved to `examples/qec_adaptive_results.json`
 
 Typical runtime: ~30–60 s (sequential rounds, one Grok call each).
+
+---
+
+## Example 11 — Adaptive Enemy AI (GameEnv + Ray + Grok Reflexion)
+
+A dungeon RPG enemy that **learns to beat the player** across episodes via a Reflexion-style agentic loop. The enemy starts with a dumb baseline policy (slow pursuit, weak attacks) and improves across up to 7 rounds of multi-agent critique until a Navigator meta-agent is confident the strategy is strong enough.
+
+```bash
+python3 examples/11_adaptive_enemy_ai.py
+```
+
+Requirements:
+- `XAI_API_KEY` set in Replit Secrets
+- `ray` and `matplotlib` installed
+- No pygame display needed — `GameEnv` is pure Python
+
+### GameEnv adapter interface
+
+The `GameEnv` class is the bridge between the game simulation and the agent prompts:
+
+```python
+class GameEnv:
+    def reset()                      → GameState dict
+    def step(state, policy)          → (new_state, reward, done)
+    def serialize_state(state)       → str   # text grid injected into agent prompts
+    def parse_action(text)           → dict  # agent output → policy update
+    def run_episode(policy, seed)    → EpisodeResult
+    def evaluate_policy(policy, n)   → metrics dict
+```
+
+`serialize_state` renders the dungeon as a text grid with player `P` and enemy `E` positions, HP bars, and Manhattan distance — everything the Grok agents need to reason about the enemy's situation without any game engine.
+
+### Enemy policy parameters
+
+All 6 parameters are tuned by the agents each round:
+
+| Parameter | Range | Effect |
+|---|---|---|
+| `speed` | 1–2 | BFS steps per turn (1 = walk, 2 = sprint) |
+| `attack_bonus` | 0–15 | Extra flat ATK from learned aggression |
+| `crit_chance` | 0.05–0.35 | Enemy critical hit probability |
+| `flank_weight` | 0.0–1.0 | 0 = direct BFS chase, 1 = always try to flank |
+| `burst_threshold` | 0.0–0.5 | Sprint 2 steps when player HP ratio < this |
+| `retreat_hp_pct` | 0.0–0.5 | Retreat when own HP ratio < this |
+
+### Simulation physics (verified)
+
+The dungeon is a 12×9 snake-corridor map. Enemy always pursues via BFS (no aggro gate). Each turn the enemy moves `speed` steps, then attacks if adjacent (Manhattan dist ≤ 1). Player counter-attacks every turn.
+
+- BFS path length from enemy spawn to player spawn: **15 steps**
+- Baseline policy: win rate **~2%**, avg damage **~71**
+- Fully-tuned policy: win rate **~100%**, avg damage **~111**
+
+### What happens step by step
+
+1. **Baseline** — `GameEnv.evaluate_policy()` runs 12 episodes with the default policy; enemy win rate is ~2%
+2. **4 parallel Ray/Grok analysts** dispatch simultaneously:
+   - **Tactician** — optimises `attack_bonus` and `crit_chance` (combat timing)
+   - **Pathfinder** — optimises `speed` and `flank_weight` (movement patterns)
+   - **Predictor** — models player behaviour patterns and suggests counter-strategies
+   - **Historian** — reviews the last 4 rounds of episode logs, identifies what worked
+3. **Navigator** — meta-agent sees all 4 analyses, resolves conflicts, selects the 1–2 highest-leverage parameter changes, rates its own confidence
+4. **Reflection round** — one critic agent per proposed change validates or overrides it
+5. **Policy applied** — `apply_changes()` clamps all values to `POLICY_BOUNDS`, then `evaluate_policy()` re-runs 12 episodes
+6. Loop repeats until `Navigator.confidence ≥ 0.82` **and** `win_rate ≥ 0.4`, or after 7 rounds
+
+### Stop condition and confidence gating
+
+```python
+CONFIDENCE_THRESHOLD = 0.82
+MAX_ROUNDS           = 7
+
+if nav["stop"] or nav["confidence"] >= CONFIDENCE_THRESHOLD:
+    print("Navigator satisfied — stopping.")
+    break
+```
+
+The Navigator sets `"stop": true` in its JSON when it believes the policy is strong enough; the outer loop also hard-stops at 7 rounds.
+
+### Outputs
+
+| File | Contents |
+|---|---|
+| `examples/enemy_learning_curve.png` | Win rate + avg damage per round (bar), Navigator confidence (line) |
+| `examples/agent_graph_enemy_ai.png` | Full multi-round agent graph (analysts → Navigator → critics → GameEnv) |
+| `examples/enemy_ai_results.json` | Complete log: all policies, metrics, analyst suggestions, critiques, final report |
+
+### Key implementation details
+
+- All Ray remote functions re-import `openai` and `os` locally (no closure capture across workers)
+- `_parse_json()` strips markdown fences before `json.loads` — handles Grok's occasional ```json wrapping
+- `apply_changes()` applies `POLICY_BOUNDS` clamping so agents can't produce out-of-range values
+- `history_summary()` feeds only the last 4 rounds to agents to keep prompts short
+- The agent graph is built with `networkx` and rendered via `dsl.visualizer.visualize_graph`
+
+Typical runtime: ~60–120 s (each round: 4 parallel analyst calls + 1 Navigator + N critic calls + 12 sim episodes).
 
 ---
 
